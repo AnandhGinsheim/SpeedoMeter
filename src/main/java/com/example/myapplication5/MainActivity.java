@@ -13,14 +13,19 @@ import android.view.View;
 
 public class MainActivity extends AppCompatActivity {
 
-    SpeedoMeterView Speed;
+    private SpeedoMeterView Speed;
 
-    TachoMeterView Rpm;
+    private int frameRate =60;
+    private Handler handler;
+
+    private Runnable frameUpdateRunnable;
+
+    private TachoMeterView Rpm;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        handler = new Handler(Looper.getMainLooper());
         Speed = (SpeedoMeterView)findViewById(R.id.speedometer);
         Speed.setLabelConverter(new SpeedoMeterView.LabelConverter() {
             @Override
@@ -28,8 +33,6 @@ public class MainActivity extends AppCompatActivity {
                 return String.valueOf((int) Math.round(progress));
             }
         });
-
-
 // configure value range and ticks
         Speed.setMaxSpeed(200);
         Speed.setMajorTickStep(25);
@@ -61,11 +64,31 @@ public class MainActivity extends AppCompatActivity {
         Rpm.addColoredRange(50, 75, Color.YELLOW);
         Rpm.addColoredRange(75, 100, Color.RED);
         Rpm.setRpm(25, 2000, 500);
+
+        frameUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                Speed.invalidate();
+                handler.postDelayed(this,1000/frameRate);
+            }
+        };
+
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+    }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        handler.postDelayed(frameUpdateRunnable,1000/frameRate);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        handler.removeCallbacks(frameUpdateRunnable);
     }
 }

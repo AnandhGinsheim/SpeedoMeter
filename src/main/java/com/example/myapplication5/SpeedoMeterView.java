@@ -58,10 +58,10 @@ public class SpeedoMeterView extends View {
     private Bitmap mMask;
 
     private int progressIndex=0;
-    ValueAnimator valueAnimator;
+    private ValueAnimator valueAnimator;
 
-    Runnable runnable;
-    Handler handler;
+    private Runnable runnable;
+    private Handler handler;
 
     public SpeedoMeterView(Context context) {
         super(context);
