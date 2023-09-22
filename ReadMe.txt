@@ -1,5 +1,5 @@
 Author : Anandh
-Application : SpeedoMeter and Tachometer Simulation.
+Application : SpeedoMeter and Tachometer Simulation in Android.
 Implemented : SpeedoMeter simulation completely implemented. Tachometer is added, but not implemented. 
 Compentents used : Custom UI, View, Handler, Thread, ValueAnimator, Canvas.
 Functionality : On launching the application, speed simulation with animation will be started for the first time. 
@@ -9,3 +9,4 @@ TODO or Improvement:
 1. Code Cleanup.
 2. Comments to be added.
 3. Checking for performance and memory.
+
