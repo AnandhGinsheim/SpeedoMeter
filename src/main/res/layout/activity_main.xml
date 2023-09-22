@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:contentDescription="@string/app_name"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:gravity="center"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        tools:ignore="VisualLintBounds">
+
+        <com.example.myapplication5.SpeedoMeterView
+            android:id="@+id/speedometer"
+            android:layout_width="360dp"
+            android:layout_height="360dp"
+            android:layout_gravity="center"
+            android:layout_margin="20dp"
+            android:padding="15dp" />
+
+        <com.example.myapplication5.TachoMeterView
+            android:id="@+id/tachometer"
+            android:layout_width="360dp"
+            android:layout_height="360dp"
+            android:layout_gravity="center"
+            android:layout_margin="20dp"
+            android:padding="15dp" />
+    </LinearLayout>
+</HorizontalScrollView>
