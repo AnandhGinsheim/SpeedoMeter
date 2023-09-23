@@ -357,6 +357,25 @@ public class TachoMeterView extends View {
 
     @SuppressWarnings("NewApi")
     private void init() {
+        // configure value range and ticks
+        this.setMaxRpm(100);
+        this.setMajorTickStep(25);
+        this.setMinorTicks(0);
+
+// Configure value range colors
+        this.addColoredRange(0, 50, Color.GREEN);
+        this.addColoredRange(50, 75, Color.YELLOW);
+        this.addColoredRange(75, 100, Color.RED);
+        this.setRpm(25, 2000, 500);
+
+
+        this.setLabelConverter(new TachoMeterView.LabelConverter() {
+            @Override
+            public String getLabelFor(double progress, double maxProgress) {
+                return String.valueOf((int) Math.round(progress));
+            }
+        });
+
         if (Build.VERSION.SDK_INT >= 11 && !isInEditMode()) {
             setLayerType(View.LAYER_TYPE_HARDWARE, null);
         }

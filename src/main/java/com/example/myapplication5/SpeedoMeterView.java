@@ -1,6 +1,5 @@
 package com.example.myapplication5;
 
-import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -15,11 +14,9 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +34,19 @@ public class SpeedoMeterView extends View {
     private int defaultColor = Color.rgb(180, 180, 180);
     private double majorTickStep = DEFAULT_MAJOR_TICK_STEP;
     private int minorTicks = DEFAULT_MINOR_TICKS;
+
+    // Variables used to draw ticks.
+    float availableAngle;
+    float majorStep;
+    float minorStep;
+    float majorTicksLength = 30;
+    float minorTicksLength = majorTicksLength/2;
+    float currentAngle;
+    double curProgress;
+
     private LabelConverter labelConverter;
 
-    private List<ColoredRange> ranges = new ArrayList<ColoredRange>();
+    private List<ColoredRange> ranges;
 
     private Paint backgroundPaint;
     private Paint backgroundInnerPaint;
@@ -57,11 +64,15 @@ public class SpeedoMeterView extends View {
 
     private Bitmap mMask;
 
-    private int progressIndex=0;
-    private ValueAnimator valueAnimator;
+    private Handler handler;
 
     private Runnable runnable;
-    private Handler handler;
+
+    private ValueAnimator valueAnimator;
+    RectF oval;
+
+
+
 
     public SpeedoMeterView(Context context) {
         super(context);
@@ -110,67 +121,6 @@ public class SpeedoMeterView extends View {
         invalidate();
     }
 
-    public void startAnimationThread(){
-        runnable = new Runnable() {
-            @Override
-            public void run() {
-                valueAnimator = ValueAnimator.ofInt(0,25,50,100,125,50,175,100,200,100,0);
-                valueAnimator.setDuration(5000);
-                valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener(){
-                    @Override
-                    public void onAnimationUpdate(@NonNull ValueAnimator animation) {
-                        double value = Double.valueOf((int) animation.getAnimatedValue());
-                        setSpeed(value);
-                    }
-                });
-                valueAnimator.start();
-            }
-        };
-        handler = new Handler(Looper.getMainLooper());
-        handler.post(runnable);
-        this.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                handler.post(runnable);
-            }
-        });
-    }
-
-    public ValueAnimator setSpeed(double progress[], long duration, long startDelay) {
-        if (progress[progressIndex] < 0)
-            throw new IllegalArgumentException("Non-positive value specified as a speed.");
-
-        if (progress[progressIndex] > maxSpeed)
-            progress[progressIndex] = maxSpeed;
-
-        ValueAnimator va = ValueAnimator.ofObject(new TypeEvaluator<Double>() {
-            @Override
-            public Double evaluate(float fraction, Double startValue, Double endValue) {
-                return startValue + fraction*(endValue-startValue);
-            }
-        }, Double.valueOf(getSpeed()), Double.valueOf(progress[progressIndex]));
-        va.setDuration(duration);
-        va.setStartDelay(startDelay);
-        setSpeed(progress[progressIndex]);
-        va.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-            public void onAnimationUpdate(ValueAnimator animation) {
-                Double value = (Double) animation.getAnimatedValue();
-              ///  for (int i = 0; i < 10; i++) {
-                   // value = (Double) animation.getAnimatedValue();
-                    if (value != null) {
-                        setSpeed(value);
-                    }
-                    Log.d(TAG, "setSpeed(): onAnumationUpdate() -> value = " + value);
-                }
-        });
-        if(progressIndex<(progress.length-1)){
-            progressIndex++;
-        } else if (progressIndex==progress.length-1) {
-            progressIndex=0;
-        }
-        va.start();
-        return va;
-    }
 
     public int getDefaultColor() {
         return defaultColor;
@@ -290,7 +240,7 @@ public class SpeedoMeterView extends View {
     }
 
     private void drawNeedle(Canvas canvas) {
-        RectF oval = getOval(canvas, 1);
+        updateOval(canvas, 1);
         float radius = oval.width()*0.35f;
 
         float angle = 10 + (float) (getSpeed()/ getMaxSpeed()*160);
@@ -302,25 +252,20 @@ public class SpeedoMeterView extends View {
                 needlePaint
         );
 
-        RectF smallOval = getOval(canvas, 0.2f);
-        canvas.drawArc(smallOval, 180, 180, true, backgroundPaint);
+        updateOval(canvas, 0.2f);
+        canvas.drawArc(oval, 180, 180, true, backgroundPaint);
     }
 
+
     private void drawTicks(Canvas canvas) {
-        float availableAngle = 160;
-        float majorStep = (float) (majorTickStep/ maxSpeed *availableAngle);
-        float minorStep = majorStep / (1 + minorTicks);
+       majorStep = (float) (majorTickStep/ maxSpeed *availableAngle);
+       minorStep = majorStep / (1 + minorTicks);
 
-        float majorTicksLength = 30;
-        float minorTicksLength = majorTicksLength/2;
-
-        RectF oval = getOval(canvas, 1);
+        updateOval(canvas, 1);
         float radius = oval.width()*0.35f;
-
-        float currentAngle = 10;
-        double curProgress = 0;
+        currentAngle = 10;
+        curProgress = 0;
         while (currentAngle <= 170) {
-
             canvas.drawLine(
                     (float) (oval.centerX() + Math.cos((180-currentAngle)/180*Math.PI)*(radius-majorTicksLength/2)),
                     (float) (oval.centerY() - Math.sin(currentAngle/180*Math.PI)*(radius-majorTicksLength/2)),
@@ -346,81 +291,112 @@ public class SpeedoMeterView extends View {
             if (labelConverter != null) {
                 canvas.save();
                 canvas.rotate(180 + currentAngle, oval.centerX(), oval.centerY());
-                float txtX = oval.centerX() + radius + majorTicksLength/2 + 8;
-                float txtY = oval.centerY();
-                canvas.rotate(+90, txtX, txtY);
-                canvas.drawText(labelConverter.getLabelFor(curProgress, maxSpeed), txtX, txtY, txtPaint);
+                canvas.rotate(+90, (oval.centerX() + radius + majorTicksLength/2 + 8), oval.centerY());
+                canvas.drawText(labelConverter.getLabelFor(curProgress, maxSpeed), (oval.centerX() + radius + majorTicksLength/2 + 8), oval.centerY(), txtPaint);
                 canvas.restore();
             }
-
             currentAngle += majorStep;
             curProgress += majorTickStep;
         }
-
-        RectF smallOval = getOval(canvas, 0.7f);
+        updateOval(canvas, 0.7f);
         colorLinePaint.setColor(defaultColor);
-        canvas.drawArc(smallOval, 185, 170, false, colorLinePaint);
+        canvas.drawArc(oval, 185, 170, false, colorLinePaint);
 
         for (ColoredRange range: ranges) {
             colorLinePaint.setColor(range.getColor());
-            canvas.drawArc(smallOval, (float) (190 + range.getBegin()/ maxSpeed *160), (float) ((range.getEnd() - range.getBegin())/ maxSpeed *160), false, colorLinePaint);
+            canvas.drawArc(oval, (float) (190 + range.getBegin()/ maxSpeed *160), (float) ((range.getEnd() - range.getBegin())/ maxSpeed *160), false, colorLinePaint);
         }
     }
 
-    private RectF getOval(Canvas canvas, float factor) {
-        RectF oval;
+    private void updateOval(Canvas canvas, float factor) {
         final int canvasWidth = canvas.getWidth() - getPaddingLeft() - getPaddingRight();
         final int canvasHeight = canvas.getHeight() - getPaddingTop() - getPaddingBottom();
 
         if (canvasHeight*2 >= canvasWidth) {
-            oval = new RectF(0, 0, canvasWidth*factor, canvasWidth*factor);
+            oval.set(0, 0, canvasWidth*factor, canvasWidth*factor);
         } else {
-            oval = new RectF(0, 0, canvasHeight*2*factor, canvasHeight*2*factor);
+            oval.set(0, 0, canvasWidth*factor, canvasWidth*factor);
         }
-
         oval.offset((canvasWidth-oval.width())/2 + getPaddingLeft(), (canvasHeight*2-oval.height())/2 + getPaddingTop());
-
-        return oval;
     }
 
-    private RectF getOval(float w, float h) {
-        RectF oval;
-        final float canvasWidth = w - getPaddingLeft() - getPaddingRight();
-        final float canvasHeight = h - getPaddingTop() - getPaddingBottom();
-        if (canvasHeight*2 >= canvasWidth) {
-            oval = new RectF(0, 0, canvasWidth, canvasWidth);
-        } else {
-            oval = new RectF(0, 0, canvasHeight*2, canvasHeight*2);
-        }
-        return oval;
-    }
 
     private void drawText(Canvas canvas){
-        // Measure the text bounds to get its width and height
-        txtMeterInfo.getTextBounds(txt,0,txt.length(),rectTextBounds);
-
-        // Calculate the center position
-        int x = (canvas.getWidth() - rectTextBounds.width())/2;
-        int y = (canvas.getHeight() + rectTextBounds.height()) / 2;
-
         // Draw the text in the center
-        canvas.drawText(txt, x, y, txtMeterInfo);
+        canvas.drawText(txt, (canvas.getWidth() - rectTextBounds.width())/2, (canvas.getHeight() + rectTextBounds.height()) / 2, txtMeterInfo);
     }
     private void drawBackground(Canvas canvas) {
-        RectF oval = getOval(canvas, 1);
+        updateOval(canvas, 1);
         canvas.drawArc(oval, 180, 180, true, backgroundPaint);
 
-        RectF innerOval = getOval(canvas, 0.9f);
-        canvas.drawArc(innerOval, 180, 180, true, backgroundInnerPaint);
+        updateOval(canvas, 0.9f);
+        canvas.drawArc(oval, 180, 180, true, backgroundInnerPaint);
 
-        Bitmap mask = Bitmap.createScaledBitmap(mMask, (int)(oval.width()*1.1), (int)(oval.height()*1.1)/2, true);
-        canvas.drawBitmap(mask, oval.centerX() - oval.width()*1.1f/2, oval.centerY()-oval.width()*1.1f/2, maskPaint);
     }
 
 
-
-    @SuppressWarnings("NewApi")
     private void init() {
+        availableAngle =160;
+        majorStep = (float) (majorTickStep/ maxSpeed *availableAngle);
+        minorStep = majorStep / (1 + minorTicks);
+
+
+        oval=new RectF();
+        // Clear canvas
+        //canvas.drawColor(Color.TRANSPARENT);
+
+        // Draw Metallic Arc and background
+        //drawBackground(canvas);
+
+        // Draw Text
+        //drawText(canvas);
+
+        // Draw Ticks and colored arc
+        //drawTicks(canvas);
+
+        this.setLabelConverter(new LabelConverter() {
+            @Override
+            public String getLabelFor(double progress, double maxProgress) {
+                return String.valueOf((int) Math.round(progress));
+            }
+        });
+
+        // configure value range and ticks
+        this.setMaxSpeed(200);
+        this.setMajorTickStep(25);
+        this.setMinorTicks(5);
+
+// Configure value range colors
+        ranges = new ArrayList<ColoredRange>();
+        this.addColoredRange(0, 125, Color.GREEN);
+        this.addColoredRange(125, 175, Color.YELLOW);
+        this.addColoredRange(175, 200, Color.RED);
+
+//  Creating Runnable to start the animation on click of this view.
+        runnable = new Runnable() {
+            @Override
+            public void run() {
+                valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener(){
+                    @Override
+                    public void onAnimationUpdate(@NonNull ValueAnimator animation) {
+                        double value = Double.valueOf((int) animation.getAnimatedValue());
+                        setSpeed(value);
+                    }
+                });
+                valueAnimator.start();
+            }
+        };
+        handler = new Handler(Looper.getMainLooper());
+        this.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                handler.post(runnable);
+            }
+        });
+        // Set of speed values to be animated.
+        valueAnimator = ValueAnimator.ofInt(0,25,50,100,125,50,175,100,200,100,0);
+        valueAnimator.setDuration(5000);
+
         if (Build.VERSION.SDK_INT >= 11 && !isInEditMode()) {
             setLayerType(View.LAYER_TYPE_HARDWARE, null);
         }
@@ -431,7 +407,8 @@ public class SpeedoMeterView extends View {
 
         backgroundInnerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         backgroundInnerPaint.setStyle(Paint.Style.FILL);
-        backgroundInnerPaint.setColor(Color.rgb(150, 150, 150));
+        //backgroundInnerPaint.setColor(Color.rgb(150, 150, 150));
+        backgroundInnerPaint.setColor(Color.BLACK);
 
         txtPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         txtPaint.setColor(Color.WHITE);
@@ -443,6 +420,7 @@ public class SpeedoMeterView extends View {
         txtMeterInfo.setTextSize(35);
         txtMeterInfo.setTextAlign(Paint.Align.LEFT);
         rectTextBounds = new Rect();
+        txtMeterInfo.getTextBounds(txt,0,txt.length(),rectTextBounds);
 
         mMask = BitmapFactory.decodeResource(getResources(), R.drawable.spot_mask);
         mMask = Bitmap.createBitmap(mMask, 0, 0, mMask.getWidth(), mMask.getHeight()/2);
